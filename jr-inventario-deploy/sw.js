@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jrinvent-v1';
+const CACHE_NAME = 'jrinvent-v3';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -25,6 +25,7 @@ self.addEventListener('activate', (event) => {
       return Promise.all(
         keys.map((key) => {
           if (key !== CACHE_NAME) {
+            console.log('Clearing old PWA cache:', key);
             return caches.delete(key);
           }
         })
@@ -35,23 +36,17 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Pass API requests directly to network first
-  if (event.request.url.includes('/api/') || event.request.url.includes('/ws')) {
+  // Always fetch fresh HTML and JS from network first for instant updates
+  if (event.request.url.includes('.js') || event.request.url.includes('.html') || event.request.url.includes('/api/')) {
+    event.respondWith(
+      fetch(event.request).catch(() => caches.match(event.request))
+    );
     return;
   }
 
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        // Fetch fresh copy in background
-        fetch(event.request).then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200) {
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, networkResponse));
-          }
-        }).catch(() => {});
-        return cachedResponse;
-      }
-      return fetch(event.request);
+      return cachedResponse || fetch(event.request);
     })
   );
 });
