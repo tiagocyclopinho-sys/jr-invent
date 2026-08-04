@@ -459,10 +459,12 @@ body {
 
 .card-header {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: flex-start;
   margin-bottom: 6px;
   gap: 6px;
+  row-gap: 4px;
 }
 
 .product-code {
@@ -472,7 +474,7 @@ body {
   background: var(--accent-light);
   padding: 2px 7px;
   border-radius: 4px;
-  max-width: 60%;
+  max-width: 100%;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -486,6 +488,8 @@ body {
   text-transform: uppercase;
   color: #fff;
   flex-shrink: 0;
+  white-space: nowrap;
+  max-width: 100%;
 }
 
 .status-badge.gray { background-color: #6B7280; }
@@ -806,10 +810,12 @@ body {
 
 .mobile-list-card .row {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
   font-size: 0.85rem;
   margin-bottom: 6px;
+  row-gap: 4px;
 }
 
 /* ===================== AUDITORIA LOG CARDS ===================== */
