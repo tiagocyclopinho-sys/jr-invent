@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>JR INVENT - Sistema de Inventário Físico WMS</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" href="icon.png">
+  <meta name="theme-color" content="#0D381E">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <div id="app-container">
+
+    <!-- LOGIN MODAL / OVERLAY -->
+    <div id="login-modal" class="modal-overlay active">
+      <div class="modal-card" style="max-width: 420px;">
+        <div class="modal-header" style="justify-content: center; flex-direction: column; text-align: center; gap: 8px;">
+          <img src="Logo_nova-removebg-preview.png" alt="JR Distribuidora" style="height: 48px; width: auto;">
+          <h2 style="font-size: 1.3rem; margin-top: 4px;">JR INVENT WMS</h2>
+          <span style="font-size: 0.8rem; opacity: 0.8;">Identificação do Operador</span>
+        </div>
+        <div class="modal-body">
+          <form id="login-form">
+            <div style="margin-bottom: 12px;">
+              <label style="font-size: 0.85rem; font-weight: 700;">Usuário</label>
+              <input type="text" id="login-username" class="search-input" style="padding-left: 14px;" placeholder="Digite seu usuário..." required>
+            </div>
+            <div style="margin-bottom: 16px;">
+              <label style="font-size: 0.85rem; font-weight: 700;">Senha</label>
+              <input type="password" id="login-password" class="search-input" style="padding-left: 14px;" placeholder="Digite sua senha..." required>
+            </div>
+            <button type="submit" class="btn-large btn-primary" style="width: 100%;">Entrar no Sistema</button>
+          </form>
+
+          <div style="margin-top: 16px; border-top: 1px solid var(--border-color); padding-top: 12px;">
+            <p style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted); margin-bottom: 8px; text-align: center;">Atalhos e Credenciais de Acesso:</p>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px;">
+              <button type="button" class="btn-large btn-secondary" onclick="quickLogin('operador1', 'op123')" style="font-size: 0.8rem; min-height: 42px;">👷 Thiago (op123)</button>
+              <button type="button" class="btn-large btn-secondary" onclick="quickLogin('admin', 'admin123')" style="font-size: 0.8rem; min-height: 42px; background-color: var(--accent-light); color: var(--primary);">👨‍💼 Admin (admin123)</button>
+            </div>
+            <div style="font-size: 0.75rem; color: var(--text-muted); text-align: center; line-height: 1.4;">
+              <strong>Administrador:</strong> admin / admin123<br>
+              <strong>Operador Thiago:</strong> operador1 / op123
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CABEÇALHO DA APLICAÇÃO -->
+    <header class="app-header">
+      <div class="brand-section">
+        <img src="Logo_nova-removebg-preview.png" alt="JR Distribuidora" class="brand-logo">
+        <div class="brand-title">
+          JR INVENT
+          <span class="brand-badge">WMS v2.0</span>
+        </div>
+      </div>
+
+      <div class="header-info-bar">
+        <div class="info-chip">
+          <strong id="hdr-inv-code">INV-2026-001</strong>
+        </div>
+        <div class="info-chip" id="hdr-wifi-status">
+          <span class="status-dot"></span>
+          <span id="wifi-text">Wi-Fi Online</span>
+        </div>
+        <div class="info-chip">
+          <span>Pendentes:</span>
+          <strong id="hdr-pending-count" style="color: #FACC15;">0</strong>
+        </div>
+        <div class="info-chip" style="background: rgba(0,0,0,0.3);">
+          <span id="hdr-user-name">Carregando...</span>
+          <button onclick="logout()" style="background: none; border: none; color: #F87171; font-weight: 700; cursor: pointer; margin-left: 6px;">[Sair]</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- BARRA DE NAVEGAÇÃO POR ABAS -->
+    <nav class="nav-tabs">
+      <button class="nav-tab-btn active" onclick="switchTab('tab-contagem')">
+        📦 Contagem Física
+        <span class="badge" id="tab-badge-all">0</span>
+      </button>
+      <button class="nav-tab-btn admin-only" onclick="switchTab('tab-terceira-contagem')">
+        ⚠️ 3ª Contagem / Divergências
+        <span class="badge" id="tab-badge-div" style="background-color: var(--danger); color: white;">0</span>
+      </button>
+      <button class="nav-tab-btn" onclick="switchTab('tab-dashboard')">
+        📊 Dashboard Gerencial
+      </button>
+      <button class="nav-tab-btn" onclick="switchTab('tab-relatorios')">
+        📄 Relatórios & Exportação
+      </button>
+      <button class="nav-tab-btn" onclick="switchTab('tab-auditoria')">
+        📜 Auditoria
+      </button>
+      <button class="nav-tab-btn admin-only" onclick="switchTab('tab-gestao-inventario')">
+        ⚙️ Gestão de Inventários
+      </button>
+    </nav>
+
+    <!-- CONTEÚDO DAS ABAS -->
+    <main class="main-content">
+
+      <!-- ABA 1: CONTAGEM FÍSICA DE PRODUTOS -->
+      <section id="tab-contagem" class="tab-pane active">
+
+        <!-- Filtros e Busca Instantânea -->
+        <div class="filter-search-card">
+          <div class="search-input-group">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input type="text" id="search-input" class="search-input" placeholder="Pesquisar por Código ou Descrição..." oninput="onSearchChange()">
+          </div>
+
+          <div style="display: flex; gap: 8px;">
+            <select id="select-deposito" class="select-control" onchange="onFilterChange()">
+              <option value="Todos">🏬 Todos os Depósitos</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Botões de Filtro de Status -->
+        <div class="status-filter-pills">
+          <button class="pill-btn active" onclick="setStatusFilter('Todos', this)">Todos</button>
+          <button class="pill-btn status-gray" onclick="setStatusFilter('Pendentes', this)">⏳ Pendentes</button>
+          <button class="pill-btn status-green" onclick="setStatusFilter('Sem Divergência', this)">✅ Sem Divergência</button>
+          <button class="pill-btn status-red" onclick="setStatusFilter('Divergentes', this)">🚨 Divergentes</button>
+        </div>
+
+        <!-- Lista Grid de Produtos -->
+        <div id="product-grid" class="product-grid">
+          <!-- Dinamicamente gerado em app.js -->
+        </div>
+
+      </section>
+
+      <!-- ABA 2: TERCEIRA CONTAGEM (LIBERAÇÃO DE DIVERGÊNCIAS POR ADMIN) -->
+      <section id="tab-terceira-contagem" class="tab-pane" style="display: none;">
+        <div style="background: var(--bg-card); padding: 20px; border-radius: var(--radius-md); border: 1px solid var(--border-color); margin-bottom: 20px;">
+          <h2 style="color: var(--danger); font-size: 1.3rem; margin-bottom: 6px; display: flex; align-items: center; gap: 8px;">
+            ⚠️ Terceira Contagem - Liberação de Divergências
+          </h2>
+          <p style="font-size: 0.9rem; color: var(--text-muted);">
+            Itens com divergência entre a 1ª Contagem (Teórica) e a 2ª Contagem (Operador) exigem obrigatoriamente a revisão e aprovação manual de um <strong>Administrador</strong> com justificativa registrada.
+          </p>
+        </div>
+
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Código</th>
+                <th>Descrição</th>
+                <th>Depósito</th>
+                <th>Qtd Teórica</th>
+                <th>Qtd 2ª Contagem</th>
+                <th>Diferença</th>
+                <th>Operador</th>
+                <th>Justificativa Obrigatória</th>
+                <th>Ação</th>
+              </tr>
+            </thead>
+            <tbody id="tbl-divergences-body">
+              <!-- Preenchido via app.js -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ABA 3: DASHBOARD GERENCIAL -->
+      <section id="tab-dashboard" class="tab-pane" style="display: none;">
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <span class="kpi-label">Total de Itens</span>
+            <span class="kpi-value" id="dash-total-items">0</span>
+            <span class="kpi-subtext" style="color: var(--text-muted);">Itens no Inventário</span>
+          </div>
+
+          <div class="kpi-card">
+            <span class="kpi-label">Itens Contados</span>
+            <span class="kpi-value" id="dash-counted-items" style="color: var(--accent);">0</span>
+            <span class="kpi-subtext" id="dash-completion-pct" style="color: var(--success); font-weight: 700;">0% Concluído</span>
+          </div>
+
+          <div class="kpi-card">
+            <span class="kpi-label">Itens Pendentes</span>
+            <span class="kpi-value" id="dash-pending-items" style="color: var(--warning);">0</span>
+            <span class="kpi-subtext">Aguardando Contagem</span>
+          </div>
+
+          <div class="kpi-card">
+            <span class="kpi-label">Itens Divergentes</span>
+            <span class="kpi-value" id="dash-divergent-items" style="color: var(--danger);">0</span>
+            <span class="kpi-subtext" style="color: var(--danger);">Requer 3ª Contagem</span>
+          </div>
+
+          <div class="kpi-card">
+            <span class="kpi-label">Valor Total Inventariado</span>
+            <span class="kpi-value" id="dash-inventoried-val">R$ 0,00</span>
+            <span class="kpi-subtext" id="dash-theoretical-val">Teórico: R$ 0,00</span>
+          </div>
+
+          <div class="kpi-card">
+            <span class="kpi-label">Diferença Financeira</span>
+            <span class="kpi-value" id="dash-financial-diff">R$ 0,00</span>
+            <span class="kpi-subtext" id="dash-qty-diff">Diferença em Qtd: 0</span>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+          <div style="background: var(--bg-card); padding: 20px; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+            <h3 style="font-size: 1.1rem; margin-bottom: 14px; color: var(--primary);">👷 Produtividade por Operador</h3>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Operador</th>
+                    <th>Itens Contados</th>
+                    <th>Sem Divergência</th>
+                    <th>Divergências</th>
+                  </tr>
+                </thead>
+                <tbody id="tbl-op-productivity">
+                  <!-- Preenchido via app.js -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div style="background: var(--bg-card); padding: 20px; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+            <h3 style="font-size: 1.1rem; margin-bottom: 14px; color: var(--primary);">🏬 Resumo por Depósito</h3>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Depósito</th>
+                    <th>Total</th>
+                    <th>Contados</th>
+                    <th>Pendentes</th>
+                    <th>Divergentes</th>
+                  </tr>
+                </thead>
+                <tbody id="tbl-deposit-summary">
+                  <!-- Preenchido via app.js -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ABA 4: RELATÓRIOS & EXPORTAÇÕES -->
+      <section id="tab-relatorios" class="tab-pane" style="display: none;">
+        <div style="background: var(--bg-card); padding: 20px; border-radius: var(--radius-md); border: 1px solid var(--border-color); margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <h2 style="font-size: 1.2rem; color: var(--primary);">📄 Relatórios de Inventário Físico</h2>
+            <p style="font-size: 0.85rem; color: var(--text-muted);">Gere automaticamente os relatórios corporativos com KPIs, resumo e tabela analítica.</p>
+          </div>
+          <div style="display: flex; gap: 10px;">
+            <button class="btn-large btn-primary" onclick="exportPDF()">🖨️ PDF / Imprimir</button>
+            <button class="btn-large btn-secondary" onclick="exportCSV()">📊 Exportar CSV</button>
+          </div>
+        </div>
+
+        <div id="report-print-container" style="background: var(--bg-card); padding: 24px; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--primary); padding-bottom: 12px; margin-bottom: 20px;">
+            <div>
+              <img src="Logo_nova-removebg-preview.png" alt="JR Distribuidora" style="height: 44px; filter: invert(0.2);">
+              <h1 style="font-size: 1.4rem; color: var(--primary); margin-top: 4px;">RELATÓRIO ANALÍTICO DE INVENTÁRIO FÍSICO</h1>
+              <p style="font-size: 0.85rem; color: var(--text-muted);">JR DISTRIBUIDORA - WMS INVENTORY MANAGEMENT</p>
+            </div>
+            <div style="text-align: right; font-size: 0.85rem;">
+              <p><strong>Inventário:</strong> <span id="rpt-inv-code">INV-2026-001</span></p>
+              <p><strong>Data de Emissão:</strong> <span id="rpt-date">--</span></p>
+              <p><strong>Status:</strong> <span id="rpt-status">Em andamento</span></p>
+            </div>
+          </div>
+
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Código</th>
+                  <th>Descrição</th>
+                  <th>Depósito</th>
+                  <th>Qtd Teórica</th>
+                  <th>Qtd Contada</th>
+                  <th>Diferença</th>
+                  <th>Custo Médio</th>
+                  <th>Valor Divergência</th>
+                  <th>Operador</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="tbl-report-analytical">
+                <!-- Preenchido via app.js -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ABA 5: CENTRAL DE AUDITORIA -->
+      <section id="tab-auditoria" class="tab-pane" style="display: none;">
+        <div style="background: var(--bg-card); padding: 20px; border-radius: var(--radius-md); border: 1px solid var(--border-color); margin-bottom: 20px;">
+          <h2 style="font-size: 1.2rem; color: var(--primary); margin-bottom: 6px;">📜 Rastreabilidade & Log de Auditoria</h2>
+          <p style="font-size: 0.85rem; color: var(--text-muted);">Registro cronológico de todas as operações de login, contagem, aprovações e alterações no inventário.</p>
+        </div>
+
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Data / Hora</th>
+                <th>Usuário</th>
+                <th>Perfil</th>
+                <th>Ação</th>
+                <th>Detalhes da Operação</th>
+              </tr>
+            </thead>
+            <tbody id="tbl-audit-body">
+              <!-- Preenchido via app.js -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ABA 6: GESTÃO DE INVENTÁRIOS (ADMIN) -->
+      <section id="tab-gestao-inventario" class="tab-pane" style="display: none;">
+        <div style="background: var(--bg-card); padding: 20px; border-radius: var(--radius-md); border: 1px solid var(--border-color); margin-bottom: 20px;">
+          <h2 style="font-size: 1.2rem; color: var(--primary); margin-bottom: 12px;">⚙️ Abertura, Bloqueio e Importação de Planilha</h2>
+          
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <div style="border: 1px dashed var(--border-color); padding: 16px; border-radius: var(--radius-sm);">
+              <h3 style="font-size: 1rem; margin-bottom: 10px;">📤 Importar Nova Planilha Excel</h3>
+              <input type="file" id="file-excel-input" accept=".xlsx, .xls" class="search-input" style="padding: 10px; margin-bottom: 12px;">
+              <button class="btn-large btn-primary" onclick="uploadNewExcel()" style="width: 100%;">Iniciar Limpeza e Criar Inventário</button>
+            </div>
+
+            <div style="border: 1px dashed var(--border-color); padding: 16px; border-radius: var(--radius-sm);">
+              <h3 style="font-size: 1rem; margin-bottom: 10px;">🔒 Encerramento e Reabertura</h3>
+              <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px;">Finalizar o inventário bloqueia edições de operadores. Reabertura exige senha administrativa.</p>
+              <div style="display: flex; gap: 10px;">
+                <button class="btn-large btn-danger" onclick="confirmFinalizeInventory()">Finalizar Inventário</button>
+                <button class="btn-large btn-secondary" onclick="openReopenModal()">Reabrir Inventário</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- MODAL DE CONTAGEM RÁPIDA DE PRODUTO -->
+    <div id="count-modal" class="modal-overlay">
+      <div class="modal-card">
+        <div class="modal-header">
+          <div>
+            <h3 id="modal-product-code" style="font-size: 1.2rem; font-weight: 800;">PROD-001</h3>
+            <span id="modal-product-deposito" style="font-size: 0.8rem; opacity: 0.9;">Depósito Central</span>
+          </div>
+          <button onclick="closeCountModal()" style="background: none; border: none; color: white; font-size: 1.5rem; cursor: pointer;">&times;</button>
+        </div>
+
+        <div class="modal-body">
+          <p id="modal-product-desc" style="font-weight: 700; font-size: 1rem; color: var(--text-main);">Descrição do Produto...</p>
+          
+          <div style="display: flex; justify-content: space-between; font-size: 0.85rem; background: var(--bg-main); padding: 8px 12px; border-radius: 6px;">
+            <span>Saldo Teórico: <strong id="modal-product-teorica">0</strong></span>
+            <span>Custo Médio: <strong id="modal-product-custo">R$ 0,00</strong></span>
+          </div>
+
+          <div>
+            <label style="font-size: 0.85rem; font-weight: 700; display: block; margin-bottom: 6px;">Quantidade Contada Física</label>
+            <input type="number" id="count-qty-input" class="count-input-display" value="0" step="any">
+          </div>
+
+          <!-- Botões de Incremento Rápido -->
+          <div class="step-btns">
+            <button class="step-btn" onclick="stepCount(1)">+1</button>
+            <button class="step-btn" onclick="stepCount(5)">+5</button>
+            <button class="step-btn" onclick="stepCount(10)">+10</button>
+            <button class="step-btn" onclick="stepCount(-1)" style="background: #FEE2E2; color: var(--danger);">-1</button>
+          </div>
+
+          <!-- Teclado Numérico Visual para Smartphones/Coletores -->
+          <div class="numpad-grid">
+            <button class="num-btn" onclick="numpadPress('7')">7</button>
+            <button class="num-btn" onclick="numpadPress('8')">8</button>
+            <button class="num-btn" onclick="numpadPress('9')">9</button>
+            <button class="num-btn" onclick="numpadPress('4')">4</button>
+            <button class="num-btn" onclick="numpadPress('5')">5</button>
+            <button class="num-btn" onclick="numpadPress('6')">6</button>
+            <button class="num-btn" onclick="numpadPress('1')">1</button>
+            <button class="num-btn" onclick="numpadPress('2')">2</button>
+            <button class="num-btn" onclick="numpadPress('3')">3</button>
+            <button class="num-btn" onclick="numpadPress('C')" style="color: var(--danger);">C</button>
+            <button class="num-btn" onclick="numpadPress('0')">0</button>
+            <button class="num-btn" onclick="numpadPress('DEL')">⌫</button>
+          </div>
+
+          <div>
+            <label style="font-size: 0.85rem; font-weight: 700; display: block; margin-bottom: 4px;">Observação (Opcional)</label>
+            <input type="text" id="count-obs-input" class="search-input" style="padding-left: 12px;" placeholder="Ex: Embalagem avariada, local X...">
+          </div>
+
+          <button class="btn-large btn-primary" onclick="submitCount()" style="width: 100%; font-size: 1.1rem; min-height: 54px;">
+            💾 Salvar Contagem
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL DE REABERTURA COM SENHA ADMIN -->
+    <div id="reopen-modal" class="modal-overlay">
+      <div class="modal-card" style="max-width: 400px;">
+        <div class="modal-header">
+          <h3>🔐 Reabertura de Inventário</h3>
+          <button onclick="closeReopenModal()" style="background: none; border: none; color: white; font-size: 1.5rem;">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p style="font-size: 0.85rem; color: var(--text-muted);">
+            A reabertura de um inventário finalizado gerará um registro imediato no Log de Auditoria. Insira a senha administrativa:
+          </p>
+          <input type="password" id="reopen-password-input" class="search-input" style="padding-left: 12px;" placeholder="Senha do Administrador...">
+          <button class="btn-large btn-danger" onclick="submitReopenInventory()" style="width: 100%;">Confirmar Reabertura</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="app.js"></script>
+  <script>
+    // Register Service Worker for PWA
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js').then(() => {
+        console.log('JR INVENT Service Worker registrado com sucesso!');
+      }).catch(err => console.log('SW registration error:', err));
+    }
+  </script>
+</body>
+</html>
