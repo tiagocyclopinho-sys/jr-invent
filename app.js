@@ -1,5 +1,6 @@
 import {
   getActiveInventory,
+  listInventories,
   startInventory,
   joinAsAuditor,
   subscribeToItems,
@@ -39,6 +40,7 @@ let unsubscribeItems = null;
 let unsubscribeJoins = null;
 let unsubscribeAudit = null;
 let pendingParsedExcel = null;
+let historyInventoriesCache = [];
 
 // ===================== INICIALIZAÇÃO =====================
 document.addEventListener("DOMContentLoaded", () => {
@@ -194,6 +196,7 @@ window.showAuditorJoinView = function(inv) {
   const modal = document.getElementById("start-modal");
   const viewAuditor = document.getElementById("view-auditor-join");
   const viewAdmin = document.getElementById("view-admin-start");
+  const viewHistory = document.getElementById("view-history");
   const backBtn = document.getElementById("btn-back-to-join-container");
 
   const targetInv = inv || currentInventory;
@@ -204,6 +207,7 @@ window.showAuditorJoinView = function(inv) {
 
   viewAuditor.style.display = "block";
   viewAdmin.style.display = "none";
+  if (viewHistory) viewHistory.style.display = "none";
   if (backBtn) backBtn.style.display = "none";
   modal.classList.add("active");
 };
@@ -261,14 +265,149 @@ window.showStartInventoryView = function() {
   const modal = document.getElementById("start-modal");
   const viewAuditor = document.getElementById("view-auditor-join");
   const viewAdmin = document.getElementById("view-admin-start");
+  const viewHistory = document.getElementById("view-history");
   const backBtn = document.getElementById("btn-back-to-join-container");
 
   viewAuditor.style.display = "none";
   viewAdmin.style.display = "block";
+  if (viewHistory) viewHistory.style.display = "none";
   if (backBtn && currentInventory) backBtn.style.display = "block";
   modal.classList.add("active");
 };
 window.showStartInventoryForm = window.showStartInventoryView;
+
+// ===================== INVENTÁRIOS ANTERIORES (REACESSO SEM CRIAR NOVO) =====================
+// Permite ao Administrador reacessar um inventário já existente (inclusive finalizado)
+// sem precisar iniciar um novo ciclo — por exemplo, para tirar outra via do relatório
+// ou corrigir/editar um inventário que já foi encerrado.
+window.showInventoryHistoryView = async function() {
+  const modal = document.getElementById("start-modal");
+  const viewAuditor = document.getElementById("view-auditor-join");
+  const viewAdmin = document.getElementById("view-admin-start");
+  const viewHistory = document.getElementById("view-history");
+
+  if (viewAuditor) viewAuditor.style.display = "none";
+  if (viewAdmin) viewAdmin.style.display = "none";
+  if (viewHistory) viewHistory.style.display = "block";
+  modal.classList.add("active");
+
+  const listEl = document.getElementById("history-inv-list");
+  if (listEl) {
+    listEl.innerHTML = `<p style="text-align:center; color:var(--text-muted); font-size:0.85rem; padding:16px 0;">Carregando inventários...</p>`;
+  }
+
+  try {
+    historyInventoriesCache = await listInventories();
+    renderHistoryList();
+  } catch (err) {
+    if (listEl) {
+      listEl.innerHTML = `<p style="text-align:center; color:var(--danger); font-size:0.85rem;">Erro ao carregar inventários: ${escapeHtml(err.message)}</p>`;
+    }
+  }
+};
+
+window.closeHistoryView = function() {
+  const viewHistory = document.getElementById("view-history");
+  if (viewHistory) viewHistory.style.display = "none";
+
+  if (currentInventory && currentUser) {
+    document.getElementById("start-modal").classList.remove("active");
+  } else if (currentInventory) {
+    showAuditorJoinView(currentInventory);
+  } else {
+    showStartInventoryView();
+  }
+};
+
+window.renderHistoryList = function() {
+  const q = (document.getElementById("history-search-input")?.value || "").toLowerCase().trim();
+  const listEl = document.getElementById("history-inv-list");
+  if (!listEl) return;
+
+  const filtered = historyInventoriesCache.filter(inv => {
+    if (!q) return true;
+    return (inv.code || "").toLowerCase().includes(q)
+      || (inv.name || "").toLowerCase().includes(q)
+      || (inv.responsible || "").toLowerCase().includes(q);
+  });
+
+  if (filtered.length === 0) {
+    listEl.innerHTML = `<p style="text-align:center; color:var(--text-muted); font-size:0.85rem; padding:20px 0;">Nenhum inventário encontrado.</p>`;
+    return;
+  }
+
+  listEl.innerHTML = "";
+  filtered.forEach(inv => {
+    const isFinal = inv.status === "Finalizado";
+    const statusColor = isFinal ? "var(--text-muted)" : "var(--success)";
+    const dateStr = inv.startDate ? new Date(inv.startDate).toLocaleDateString("pt-BR") : "--";
+
+    const card = document.createElement("div");
+    card.className = "mobile-list-card";
+    card.style.cursor = "pointer";
+    card.onclick = () => window.selectHistoricalInventory(inv.id);
+    card.innerHTML = `
+      <div class="row" style="justify-content: space-between;">
+        <strong style="font-size:0.92rem; color:var(--primary);">${escapeHtml(inv.code)}</strong>
+        <span style="font-size:0.72rem; font-weight:700; color:${statusColor};">${escapeHtml(inv.status || "--")}</span>
+      </div>
+      <div style="font-size:0.8rem; color:var(--text-main); margin-top:2px;">${escapeHtml(inv.name || "Sem nome")}</div>
+      <div style="font-size:0.75rem; color:var(--text-muted); margin-top:2px;">👤 ${escapeHtml(inv.responsible || "--")} · 📅 ${dateStr} · 📦 ${inv.itemsCount ?? "--"} itens</div>
+    `;
+    listEl.appendChild(card);
+  });
+};
+
+window.selectHistoricalInventory = async function(invId) {
+  const inv = historyInventoriesCache.find(i => i.id === invId);
+  if (!inv) return;
+
+  const pass = prompt(`Informe a senha de atestado do Administrador para acessar o inventário ${inv.code}:`);
+  if (pass === null) return;
+  const trimmedPass = (pass || "").trim();
+  if (!trimmedPass || (inv.adminPassword && trimmedPass !== String(inv.adminPassword).trim())) {
+    alert("Senha incorreta.");
+    return;
+  }
+
+  const name = prompt("Informe seu nome completo para registro:", (currentUser && currentUser.name) || inv.responsible || "");
+  if (name === null) return;
+  const trimmedName = (name || "").trim();
+  if (!trimmedName) {
+    alert("Informe seu nome para prosseguir.");
+    return;
+  }
+
+  if (unsubscribeItems) { unsubscribeItems(); unsubscribeItems = null; }
+  if (unsubscribeJoins) { unsubscribeJoins(); unsubscribeJoins = null; }
+  if (unsubscribeAudit) { unsubscribeAudit(); unsubscribeAudit = null; }
+
+  currentUser = {
+    name: trimmedName,
+    role: "admin",
+    inventoryId: inv.id,
+    adminPassword: trimmedPass
+  };
+  localStorage.setItem("jrinvent_session", JSON.stringify(currentUser));
+  currentInventory = inv;
+
+  try {
+    await addAuditLog(inv.id, {
+      user: trimmedName,
+      role: "admin",
+      action: "Acesso a Inventário Anterior",
+      details: `${trimmedName} reacessou o inventário ${inv.code} (status: ${inv.status}) pela tela de Inventários Anteriores, sem criar um novo inventário.`
+    });
+  } catch (err) {
+    console.warn("Log de acesso ao histórico gravado offline:", err);
+  }
+
+  document.getElementById("start-modal").classList.remove("active");
+  applyUserSession();
+  bindInventorySubscriptions(inv.id);
+  showToast(`📂 Inventário ${inv.code} carregado com sucesso!`);
+  selectMenuItem("tab-relatorios", null);
+};
 
 function applyUserSession() {
   if (!currentUser) return;
@@ -569,8 +708,15 @@ window.loadMoreItems = function() {
 // ===================== MODAL DE CONTAGEM CEGA =====================
 window.openCountModal = function(itemId) {
   if (currentInventory && currentInventory.isLocked) {
-    alert("Este inventário está finalizado e bloqueado para edições.");
-    return;
+    // Operadores continuam bloqueados. O Administrador pode reabrir a edição pontual
+    // de um item mesmo com o inventário finalizado (ex.: corrigir um relatório já encerrado).
+    if (!currentUser || currentUser.role !== "admin") {
+      alert("Este inventário está finalizado e bloqueado para edições.");
+      return;
+    }
+    if (!confirm("Este inventário já está FINALIZADO. Deseja realmente editar a contagem deste item mesmo assim? A alteração ficará registrada na auditoria.")) {
+      return;
+    }
   }
 
   const item = allItems.find(i => i.id === itemId);
@@ -637,8 +783,19 @@ window.submitCount = async function() {
     // Feedback tátil
     if (navigator.vibrate) navigator.vibrate(80);
 
-    // Salvar e avançar para o próximo item pendente da lista atual
-    advanceToNextPendingItem(currentSavedItemId);
+    if (currentInventory.isLocked) {
+      addAuditLog(currentInventory.id, {
+        user: operatorName,
+        role: currentUser ? currentUser.role : "admin",
+        action: "Edição em Inventário Finalizado",
+        details: `Contagem do item ${currentSavedItemId} foi alterada após a finalização do inventário.`
+      }).catch(() => {});
+    }
+
+    // Volta para a tela inicial de contagem do depósito, sem avançar automaticamente
+    // (os itens podem não estar dispostos fisicamente em sequência no depósito)
+    closeCountModal();
+    showToast("✅ Contagem registrada com sucesso!");
   } catch (err) {
     if (err.message === "CONFLITO") {
       alert("⚠️ Atenção: Outro auditor atualizou este item enquanto seu modal estava aberto. O valor foi recarregado para sua conferência.");
@@ -671,44 +828,24 @@ window.submitNonLocated = async function() {
       });
 
       if (navigator.vibrate) navigator.vibrate(80);
-      advanceToNextPendingItem(currentSavedItemId);
+
+      if (currentInventory.isLocked) {
+        addAuditLog(currentInventory.id, {
+          user: operatorName,
+          role: currentUser ? currentUser.role : "admin",
+          action: "Edição em Inventário Finalizado",
+          details: `Item ${currentSavedItemId} foi marcado como não localizado após a finalização do inventário.`
+        }).catch(() => {});
+      }
+
+      // Volta para a tela inicial de contagem do depósito, sem avançar automaticamente
+      closeCountModal();
+      showToast("✅ Item registrado como não localizado.");
     } catch (err) {
       alert("Erro ao gravar item como não localizado: " + err.message);
     }
   }
 };
-
-function advanceToNextPendingItem(justSavedId) {
-  // Procura o próximo item não contado na lista filtrada atual
-  const currentIndex = filteredItems.findIndex(i => i.id === justSavedId);
-  let nextItem = null;
-
-  // Busca do próximo em diante
-  const startIndex = currentIndex >= 0 ? currentIndex + 1 : 0;
-  for (let i = startIndex; i < filteredItems.length; i++) {
-    if (filteredItems[i].id !== justSavedId && filteredItems[i].status === "nao_contado") {
-      nextItem = filteredItems[i];
-      break;
-    }
-  }
-
-  // Se não achou depois, busca do início até o atual
-  if (!nextItem && currentIndex > 0) {
-    for (let i = 0; i < currentIndex; i++) {
-      if (filteredItems[i].id !== justSavedId && filteredItems[i].status === "nao_contado") {
-        nextItem = filteredItems[i];
-        break;
-      }
-    }
-  }
-
-  if (nextItem) {
-    openCountModal(nextItem.id);
-  } else {
-    closeCountModal();
-    showToast("🎉 Todos os itens visíveis foram contados!");
-  }
-}
 
 // ===================== ITEM NÃO CADASTRADO (FORA DA PLANILHA) =====================
 window.openAdhocItemModal = function() {
@@ -839,19 +976,15 @@ function renderDivergencesCards() {
         <div style="font-size:0.82rem; color:${diffColor};">Diferença: <strong>${diff > 0 ? "+" : ""}${diff}</strong></div>
       </div>
       <div style="margin-bottom:8px;">
-        <label style="font-size:0.75rem; font-weight:700; display:block; margin-bottom:3px;">Qtd Final Aprovada</label>
+        <label style="font-size:0.75rem; font-weight:700; display:block; margin-bottom:3px;">Qtd Final Reverificada</label>
         <input type="number" id="div-qty-${item.id}" value="${item.quantidadeContada ?? 0}" class="search-input" style="padding:8px;">
-      </div>
-      <div style="margin-bottom:8px;">
-        <label style="font-size:0.75rem; font-weight:700; display:block; margin-bottom:3px;">Justificativa (obrigatória)</label>
-        <input type="text" id="div-just-${item.id}" placeholder="Ex: Reconferido em prateleira superior..." class="search-input" style="padding:8px;">
       </div>
       <div style="margin-bottom:10px;">
         <label style="font-size:0.75rem; font-weight:700; display:block; margin-bottom:3px;">Senha de Atestado Admin</label>
         <input type="password" id="div-pass-${item.id}" placeholder="Senha do Admin..." class="search-input" style="padding:8px;">
       </div>
       <button class="btn-large btn-primary" onclick="handleApproveDivergence('${item.id}')" style="width:100%; min-height:42px; font-size:0.9rem;">
-        ✅ Atestar e Liberar Divergência
+        ✅ Reverificar e Liberar Divergência
       </button>`;
     container.appendChild(card);
   });
@@ -860,15 +993,12 @@ function renderDivergencesCards() {
 window.handleApproveDivergence = async function(itemId) {
   if (!currentInventory) return;
   const qtyInput = document.getElementById(`div-qty-${itemId}`);
-  const justInput = document.getElementById(`div-just-${itemId}`);
   const passInput = document.getElementById(`div-pass-${itemId}`);
 
   const qty = parseFloat(qtyInput.value);
-  const just = justInput.value.trim();
   const pass = passInput.value.trim();
 
-  if (isNaN(qty)) { alert("Informe a quantidade aprovada."); return; }
-  if (!just) { alert("A justificativa é obrigatória para atestar divergências."); return; }
+  if (isNaN(qty)) { alert("Informe a quantidade reverificada."); return; }
   if (!pass) { alert("Insira a senha de atestado do Administrador."); return; }
 
   // Comparação local com a senha do inventário ativo carregado
@@ -878,14 +1008,16 @@ window.handleApproveDivergence = async function(itemId) {
   }
 
   try {
+    // A validação da senha de atestado, junto com a quantidade final informada,
+    // já caracteriza a reverificação — não é mais exigida uma justificativa manual.
     await approveDivergence(currentInventory.id, itemId, {
       quantidadeContada: qty,
-      justification: just,
+      justification: "Reverificado e atestado pelo Administrador mediante validação da senha de atestado.",
       adminUser: currentUser ? currentUser.name : (currentInventory.responsible || "Admin"),
       adminPassword: pass
     });
 
-    showToast("✅ Divergência liberada!");
+    showToast("✅ Item reverificado e divergência liberada!");
     renderDivergencesCards();
   } catch (err) {
     alert("Erro ao aprovar divergência: " + err.message);

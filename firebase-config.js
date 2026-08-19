@@ -43,7 +43,21 @@ try {
 export const db = firestoreInstance;
 export const auth = getAuth(app);
 
+let authPromise = null;
+export async function ensureAuth() {
+  if (auth.currentUser) return auth.currentUser;
+  if (!authPromise) {
+    authPromise = signInAnonymously(auth)
+      .then((cred) => cred.user)
+      .catch((err) => {
+        authPromise = null;
+        console.warn("Aviso na autenticação anônima do Firebase (verifique se 'Anônimo' está ativo no Firebase Console):", err);
+        return null;
+      });
+  }
+  return authPromise;
+}
+
 // Autenticação anônima em segundo plano para atender request.auth != null nas regras de segurança
-signInAnonymously(auth).catch((err) => {
-  console.warn("Aviso na autenticação anônima do Firebase (verifique a configuração de rede ou chaves do Firebase):", err);
-});
+ensureAuth().catch(() => {});
+

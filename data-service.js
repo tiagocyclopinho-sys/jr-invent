@@ -2,7 +2,7 @@
 // Este módulo concentra todas as chamadas ao Firestore, viabilizando persistência offline nativa
 // e centralizando a lógica de banco de dados do aplicativo.
 
-import { db } from "./firebase-config.js";
+import { db, ensureAuth } from "./firebase-config.js";
 import {
   collection,
   doc,
@@ -30,6 +30,7 @@ const activeItemSubscriptions = new Map();
  */
 export async function getActiveInventory() {
   try {
+    await ensureAuth().catch(() => {});
     const activeMetaRef = doc(db, "meta", "activeInventory");
     const metaSnap = await getDoc(activeMetaRef);
 
@@ -51,10 +52,29 @@ export async function getActiveInventory() {
 }
 
 /**
+ * Lista os inventários já cadastrados (mais recentes primeiro), independente do status.
+ * Usado para permitir o reacesso a inventários finalizados sem precisar criar um novo
+ * (ex.: tirar outra via do relatório ou editar um inventário já encerrado).
+ */
+export async function listInventories(limitCount = 50) {
+  try {
+    await ensureAuth().catch(() => {});
+    const invCol = collection(db, "inventories");
+    const q = query(invCol, orderBy("createdAt", "desc"), limit(limitCount));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (err) {
+    console.error("Erro ao listar inventários anteriores:", err);
+    return [];
+  }
+}
+
+/**
  * Cria um novo inventário e insere itens em lotes (writeBatch de até 500 operações)
  * Usa transação atômica para checar a trava meta/activeInventory contra inventários duplicados
  */
 export async function startInventory({ adminName, adminPassword, inventoryName, scopeFilter = "Geral", excelFile, items = [] }) {
+  await ensureAuth().catch(() => {});
   const invCol = collection(db, "inventories");
   const newInvRef = doc(invCol);
   const activeMetaRef = doc(db, "meta", "activeInventory");

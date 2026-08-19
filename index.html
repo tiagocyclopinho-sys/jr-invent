@@ -53,6 +53,29 @@
               <button type="button" class="btn-text" onclick="showStartInventoryView()">
                 ⚙️ Iniciar um novo inventário (Admin)
               </button>
+              <button type="button" class="btn-text" onclick="showInventoryHistoryView()">
+                🗂️ Acessar inventário anterior (relatórios / edição)
+              </button>
+            </div>
+          </div>
+
+          <!-- ESTADO 3: INVENTÁRIOS ANTERIORES (REACESSO SEM CRIAR NOVO) -->
+          <div id="view-history" style="display: none;">
+            <div style="margin-bottom: 12px;">
+              <h3 style="font-size: 1.05rem; color: var(--primary); margin-bottom: 4px;">🗂️ Inventários Anteriores</h3>
+              <p style="font-size: 0.8rem; color: var(--text-muted);">Reacesse um inventário já existente — inclusive finalizado — para tirar outra via do relatório ou editar sem precisar criar um novo.</p>
+            </div>
+
+            <input type="text" id="history-search-input" class="search-input" style="padding-left: 14px; margin-bottom: 10px;" placeholder="Buscar por código, nome ou responsável..." oninput="renderHistoryList()">
+
+            <div id="history-inv-list" style="max-height: 340px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-right: 2px;">
+              <!-- Gerado via app.js -->
+            </div>
+
+            <div style="margin-top: 16px; text-align: center; border-top: 1px solid var(--border-color); padding-top: 12px;">
+              <button type="button" class="btn-text" onclick="closeHistoryView()">
+                ⬅️ Voltar
+              </button>
             </div>
           </div>
 
@@ -93,6 +116,12 @@
             <div id="btn-back-to-join-container" style="margin-top: 16px; text-align: center; border-top: 1px solid var(--border-color); padding-top: 12px; display: none;">
               <button type="button" class="btn-text" onclick="showAuditorJoinView()">
                 ⬅️ Voltar para o inventário ativo
+              </button>
+            </div>
+
+            <div style="margin-top: 8px; text-align: center;">
+              <button type="button" class="btn-text" onclick="showInventoryHistoryView()">
+                🗂️ Acessar inventário anterior (relatórios / edição)
               </button>
             </div>
           </div>
@@ -260,7 +289,7 @@
             ⚠️ Terceira Contagem - Liberação de Divergências
           </h2>
           <p style="font-size: 0.85rem; color: var(--text-muted);">
-            Itens divergentes ou não localizados exigem atestado e justificativa registrada pelo <strong>Administrador</strong>.
+            Itens divergentes ou não localizados exigem reverificação da quantidade e atestado (senha) do <strong>Administrador</strong>. Ao informar a quantidade correta e validar com a senha, o item é considerado automaticamente reverificado.
           </p>
         </div>
 
@@ -460,6 +489,12 @@
                 <button class="btn-large btn-danger" onclick="confirmFinalizeInventory()" style="flex: 1; min-height: 44px; font-size: 0.85rem;">Finalizar Inventário</button>
                 <button class="btn-large btn-secondary" onclick="openReopenModal()" style="flex: 1; min-height: 44px; font-size: 0.85rem;">Reabrir Inventário</button>
               </div>
+            </div>
+
+            <div style="border: 1px dashed var(--border-color); padding: 14px; border-radius: var(--radius-sm);">
+              <h3 style="font-size: 0.95rem; margin-bottom: 8px;">🗂️ Inventários Anteriores</h3>
+              <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 10px;">Reacesse um inventário já existente (inclusive finalizado) para tirar outra via do relatório ou editar, sem precisar criar um novo.</p>
+              <button class="btn-large btn-secondary" onclick="showInventoryHistoryView()" style="width: 100%; min-height: 44px;">Ver Inventários Anteriores</button>
             </div>
           </div>
         </div>
