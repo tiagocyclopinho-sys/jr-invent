@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>JR INVENT - Sistema de Inventário Físico</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" href="icon.png">
+  <meta name="theme-color" content="#0D381E">
+  <link rel="stylesheet" href="styles.css">
+  <!-- SheetJS para importação direta de planilhas Excel -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+
+  <div id="app-container">
+
+    <!-- CONTAINER DE NOTIFICAÇÕES TOAST (ALERTA EM TEMPO REAL) -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- NOVO MODAL DE IDENTIFICAÇÃO (SEM LOGIN TRADICIONAL) -->
+    <div id="start-modal" class="modal-overlay">
+      <div class="modal-card" style="max-width: 440px;">
+        <div class="modal-header" style="justify-content: center; flex-direction: column; text-align: center; gap: 6px;">
+          <img src="Logo_nova-removebg-preview.png" alt="JR Distribuidora" style="height: 48px; width: auto;">
+          <h2 style="font-size: 1.3rem; margin-top: 4px; color: white;">JR INVENT</h2>
+          <span id="start-modal-subtitle" style="font-size: 0.82rem; opacity: 0.9; color: #E2EFE0;">Identificação de Acesso</span>
+        </div>
+        
+        <div class="modal-body">
+          <!-- ESTADO 1: ENTRAR COMO AUDITOR -->
+          <div id="view-auditor-join" style="display: none;">
+            <div class="active-inv-banner">
+              <span style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.85;">Inventário Ativo</span>
+              <h3 id="join-inv-title" style="font-size: 1.15rem; margin: 4px 0;">INV-2026-001</h3>
+              <span id="join-inv-responsible" style="font-size: 0.8rem;">Responsável: Administrador</span>
+            </div>
+
+            <form id="form-auditor-join" style="margin-top: 16px;">
+              <div style="margin-bottom: 16px;">
+                <label style="font-size: 0.85rem; font-weight: 700;">Seu Nome Completo</label>
+                <input type="text" id="auditor-name-input" class="search-input" style="padding-left: 14px;" placeholder="Ex: Carlos Silva" required>
+              </div>
+              <button type="submit" class="btn-large btn-primary" style="width: 100%; font-size: 1rem; min-height: 48px;">
+                🚀 Começar a Contar
+              </button>
+            </form>
+
+            <div style="margin-top: 16px; text-align: center; border-top: 1px solid var(--border-color); padding-top: 12px; display: flex; flex-direction: column; gap: 8px;">
+              <button type="button" class="btn-text" onclick="handleAdminReentry()" style="font-weight: 700; color: var(--primary);">
+                🔑 Sou o Administrador deste inventário
+              </button>
+              <button type="button" class="btn-text" onclick="showStartInventoryView()">
+                ⚙️ Iniciar um novo inventário (Admin)
+              </button>
+            </div>
+          </div>
+
+          <!-- ESTADO 2: INICIAR NOVO INVENTÁRIO (ADMIN) -->
+          <div id="view-admin-start" style="display: none;">
+            <div style="margin-bottom: 12px;">
+              <h3 style="font-size: 1.05rem; color: var(--primary); margin-bottom: 4px;">Abertura de Inventário</h3>
+              <p style="font-size: 0.8rem; color: var(--text-muted);">Defina o responsável e a senha de atestado para aprovações.</p>
+            </div>
+
+            <form id="form-admin-start">
+              <div style="margin-bottom: 12px;">
+                <label style="font-size: 0.85rem; font-weight: 700;">Nome do Administrador</label>
+                <input type="text" id="admin-name-input" class="search-input" style="padding-left: 14px;" placeholder="Ex: Thiago Ferreira" required>
+              </div>
+
+              <div style="margin-bottom: 12px;">
+                <label style="font-size: 0.85rem; font-weight: 700;">Senha de Atestado (para liberação e encerramento)</label>
+                <input type="text" id="admin-password-input" class="search-input" style="padding-left: 14px;" placeholder="Ex: 1234" required>
+              </div>
+
+              <div style="margin-bottom: 12px;">
+                <label style="font-size: 0.85rem; font-weight: 700;">Nome / Descrição do Inventário (Opcional)</label>
+                <input type="text" id="admin-inv-name-input" class="search-input" style="padding-left: 14px;" placeholder="Ex: Inventário Geral Fevereiro">
+              </div>
+
+              <div style="margin-bottom: 16px;">
+                <label style="font-size: 0.85rem; font-weight: 700;">Planilha Excel do Estoque (.xlsx)</label>
+                <input type="file" id="admin-excel-file" accept=".xlsx, .xls" class="search-input" style="padding: 8px; font-size: 0.85rem;">
+                <span style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-top: 4px;">Você poderá conferir os dados antes de iniciar.</span>
+              </div>
+
+              <button type="submit" class="btn-large btn-primary" style="width: 100%; font-size: 1rem; min-height: 48px;">
+                📋 Processar e Iniciar Inventário
+              </button>
+            </form>
+
+            <div id="btn-back-to-join-container" style="margin-top: 16px; text-align: center; border-top: 1px solid var(--border-color); padding-top: 12px; display: none;">
+              <button type="button" class="btn-text" onclick="showAuditorJoinView()">
+                ⬅️ Voltar para o inventário ativo
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- CABEÇALHO CORPORATIVO FIXO -->
+    <header class="app-header">
+      <div class="header-left">
+        <button class="hamburger-btn" onclick="toggleDrawer()" aria-label="Abrir Menu">
+          <svg viewBox="0 0 24 24" width="26" height="26" stroke="currentColor" stroke-width="2.5" fill="none">
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <line x1="3" y1="12" x2="21" y2="12"></line>
+            <line x1="3" y1="18" x2="21" y2="18"></line>
+          </svg>
+        </button>
+
+        <div class="brand-section">
+          <img src="Logo_nova-removebg-preview.png" alt="JR Distribuidora" class="brand-logo">
+          <div class="brand-title">
+            JR INVENT
+          </div>
+        </div>
+      </div>
+
+      <div class="header-right">
+        <div class="info-chip wifi-online" id="hdr-wifi-status" title="Status de sincronização">
+          <span class="status-dot"></span>
+          <span id="wifi-text">Sincronizado</span>
+        </div>
+        <div class="info-chip badge-pending" title="Itens aguardando contagem">
+          <span id="hdr-pending-count">0</span>
+          <span class="lbl-pending">pendentes</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- MENU LATERAL SUSPENSO (SLIDE-OUT DRAWER) -->
+    <div id="drawer-backdrop" class="drawer-backdrop" onclick="closeDrawer()"></div>
+    <aside id="side-drawer" class="side-drawer">
+      <div class="drawer-header">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <img src="Logo_nova-removebg-preview.png" alt="JR Distribuidora" style="height: 36px; width: auto;">
+          <div>
+            <h3 style="font-size: 1.1rem; color: white; margin: 0;">JR INVENT</h3>
+            <span id="drawer-user-name" style="font-size: 0.8rem; color: #E2EFE0;">Operador</span>
+          </div>
+        </div>
+        <button class="drawer-close-btn" onclick="closeDrawer()">&times;</button>
+      </div>
+
+      <div class="drawer-menu-list">
+        <button class="drawer-item active" onclick="selectMenuItem('tab-contagem', this)">
+          <span class="drawer-icon">📦</span>
+          <span>Contagem Física</span>
+          <span class="badge" id="tab-badge-all">0</span>
+        </button>
+
+        <button class="drawer-item admin-only" onclick="selectMenuItem('tab-terceira-contagem', this)">
+          <span class="drawer-icon">⚠️</span>
+          <span>3ª Contagem / Divergências</span>
+          <span class="badge badge-danger" id="tab-badge-div">0</span>
+        </button>
+
+        <button class="drawer-item admin-only" onclick="selectMenuItem('tab-duplicados', this)">
+          <span class="drawer-icon">👥</span>
+          <span>Itens Duplicados</span>
+          <span class="badge badge-warning" id="tab-badge-duplicates">0</span>
+        </button>
+
+        <button class="drawer-item" onclick="selectMenuItem('tab-dashboard', this)">
+          <span class="drawer-icon">📊</span>
+          <span>Dashboard Gerencial</span>
+        </button>
+
+        <button class="drawer-item" onclick="selectMenuItem('tab-relatorios', this)">
+          <span class="drawer-icon">📄</span>
+          <span>Relatórios & Exportação</span>
+        </button>
+
+        <button class="drawer-item" onclick="selectMenuItem('tab-auditoria', this)">
+          <span class="drawer-icon">📜</span>
+          <span>Auditoria do Sistema</span>
+        </button>
+
+        <button class="drawer-item admin-only" onclick="selectMenuItem('tab-gestao-inventario', this)">
+          <span class="drawer-icon">⚙️</span>
+          <span>Gestão de Inventários</span>
+        </button>
+      </div>
+
+      <div class="drawer-footer">
+        <div style="font-size: 0.8rem; margin-bottom: 8px;">
+          Inventário: <strong id="hdr-inv-code">--</strong>
+        </div>
+        <button class="btn-large btn-danger" onclick="logout()" style="width: 100%; min-height: 42px; font-size: 0.9rem;">
+          🚪 Trocar de Operador
+        </button>
+      </div>
+    </aside>
+
+    <!-- BARRA DE STATUS DO INVENTÁRIO (MOBILE BAR) -->
+    <div class="sub-header-bar">
+      <div>📍 Depósito: <strong id="lbl-current-deposito">Todos</strong></div>
+      <div>📋 <strong id="lbl-inv-status">--</strong></div>
+    </div>
+
+    <!-- CONTEÚDO PRINCIPAL DAS ABAS -->
+    <main class="main-content">
+
+      <!-- ABA 1: CONTAGEM FÍSICA DE PRODUTOS -->
+      <section id="tab-contagem" class="tab-pane active">
+
+        <!-- Filtros, Busca Instantânea e Ação de Item Avulso -->
+        <div class="filter-search-card">
+          <div class="search-input-group">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input type="text" id="search-input" class="search-input" placeholder="Pesquisar por Código, Descrição ou Depósito..." oninput="onSearchChange()">
+          </div>
+
+          <div style="display: flex; gap: 8px; margin-top: 8px;">
+            <select id="select-deposito" class="select-control" onchange="onFilterChange()" style="flex: 1;">
+              <option value="Todos">🏬 Todos os Depósitos</option>
+            </select>
+            <button class="btn-large btn-secondary" onclick="openAdhocItemModal()" title="Adicionar item físico que não está na planilha" style="white-space: nowrap; font-size: 0.85rem; padding: 0 12px; min-height: 40px;">
+              ➕ Item não cadastrado
+            </button>
+            <button class="btn-large btn-secondary admin-only" id="btn-toggle-merge" onclick="toggleManualMergeMode()" title="Selecionar dois itens da busca para mesclar" style="white-space: nowrap; font-size: 0.85rem; padding: 0 10px; min-height: 40px;">
+              🔗 Mesclar
+            </button>
+          </div>
+        </div>
+
+        <!-- Botões de Filtro de Status Rápido -->
+        <div class="status-filter-pills">
+          <button class="pill-btn active" onclick="setStatusFilter('Todos', this)">Todos</button>
+          <button class="pill-btn status-gray" onclick="setStatusFilter('Pendentes', this)">⏳ Pendentes</button>
+          <button class="pill-btn status-green" onclick="setStatusFilter('Sem Divergência', this)">✅ Contados</button>
+          <button class="pill-btn status-red" onclick="setStatusFilter('Divergentes', this)">🚨 Divergentes</button>
+        </div>
+
+        <!-- Lista Grid de Produtos -->
+        <div id="product-grid" class="product-grid">
+          <!-- Dinamicamente gerado em app.js -->
+        </div>
+
+        <!-- Botão de Carregar Mais Itens (Paginação Incremental) -->
+        <div id="load-more-container" style="display: none; text-align: center; padding: 16px;">
+          <button class="btn-large btn-secondary" onclick="loadMoreItems()" style="min-width: 200px;">
+            ⬇️ Carregar mais itens (<span id="load-more-count">0</span> restantes)
+          </button>
+        </div>
+
+      </section>
+
+      <!-- ABA 2: TERCEIRA CONTAGEM (LIBERAÇÃO DE DIVERGÊNCIAS POR ADMIN) -->
+      <section id="tab-terceira-contagem" class="tab-pane" style="display: none;">
+        <div class="card-box" style="border-left: 4px solid var(--danger);">
+          <h2 style="color: var(--danger); font-size: 1.2rem; margin-bottom: 6px; display: flex; align-items: center; gap: 8px;">
+            ⚠️ Terceira Contagem - Liberação de Divergências
+          </h2>
+          <p style="font-size: 0.85rem; color: var(--text-muted);">
+            Itens divergentes ou não localizados exigem atestado e justificativa registrada pelo <strong>Administrador</strong>.
+          </p>
+        </div>
+
+        <!-- Lista em cards otimizada para Mobile -->
+        <div id="divergences-mobile-list" class="mobile-card-list">
+          <!-- Gerado via app.js -->
+        </div>
+      </section>
+
+      <!-- ABA: ITENS DUPLICADOS (DETECÇÃO E MESCLAGEM - ADMIN) -->
+      <section id="tab-duplicados" class="tab-pane" style="display: none;">
+        <div class="card-box" style="border-left: 4px solid var(--warning); margin-bottom: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; flex-wrap: wrap;">
+            <div>
+              <h2 style="color: var(--primary); font-size: 1.15rem; margin-bottom: 4px; display: flex; align-items: center; gap: 8px;">
+                👥 Sugestões de Itens Duplicados
+              </h2>
+              <p style="font-size: 0.82rem; color: var(--text-muted);">
+                Pares suspeitos identificados por código ou descrição similar no mesmo depósito. O Admin decide qual item sobrevive.
+              </p>
+            </div>
+            <button class="btn-large btn-secondary" onclick="loadDuplicateCandidates()" style="min-height: 36px; padding: 0 12px; font-size: 0.85rem;">
+              🔄 Atualizar Sugestões
+            </button>
+          </div>
+        </div>
+
+        <!-- Lista de Pares Duplicados -->
+        <div id="duplicates-mobile-list" class="mobile-card-list">
+          <!-- Preenchido via app.js -->
+        </div>
+      </section>
+
+      <!-- ABA 3: DASHBOARD GERENCIAL -->
+      <section id="tab-dashboard" class="tab-pane" style="display: none;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <h2 style="font-size: 1.1rem; color: var(--primary);">📊 Painel Executivo</h2>
+          <button class="btn-large btn-secondary" onclick="refreshDashboard()" style="min-height: 36px; padding: 0 12px; font-size: 0.85rem;">
+            🔄 Atualizar
+          </button>
+        </div>
+
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <span class="kpi-label">Total de Itens</span>
+            <span class="kpi-value" id="dash-total-items">0</span>
+            <span class="kpi-subtext" style="color: var(--text-muted);">Itens no Inventário</span>
+          </div>
+
+          <div class="kpi-card">
+            <span class="kpi-label">Itens Contados</span>
+            <span class="kpi-value" id="dash-counted-items" style="color: var(--accent);">0</span>
+            <span class="kpi-subtext" id="dash-completion-pct" style="color: var(--success); font-weight: 700;">0% Concluído</span>
+          </div>
+
+          <div class="kpi-card">
+            <span class="kpi-label">Itens Pendentes</span>
+            <span class="kpi-value" id="dash-pending-items" style="color: var(--warning);">0</span>
+            <span class="kpi-subtext">Aguardando Contagem</span>
+          </div>
+
+          <div class="kpi-card">
+            <span class="kpi-label">Divergentes / Não Loc.</span>
+            <span class="kpi-value" id="dash-divergent-items" style="color: var(--danger);">0</span>
+            <span class="kpi-subtext" style="color: var(--danger);">Requer 3ª Contagem</span>
+          </div>
+
+          <div class="kpi-card" style="grid-column: span 2;">
+            <span class="kpi-label">Valor Total Inventariado</span>
+            <span class="kpi-value" id="dash-inventoried-val">R$ 0,00</span>
+            <span class="kpi-subtext" id="dash-theoretical-val">Teórico: R$ 0,00</span>
+          </div>
+
+          <div class="kpi-card" style="grid-column: span 2;">
+            <span class="kpi-label">Diferença Financeira</span>
+            <span class="kpi-value" id="dash-financial-diff">R$ 0,00</span>
+            <span class="kpi-subtext" id="dash-qty-diff">Diferença em Qtd: 0</span>
+          </div>
+        </div>
+
+        <div class="dash-tables-grid">
+          <div class="card-box">
+            <h3 style="font-size: 1rem; margin-bottom: 12px; color: var(--primary);">👷 Produtividade por Operador</h3>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Operador</th>
+                    <th>Contados</th>
+                    <th>Sem Div.</th>
+                    <th>Diverg.</th>
+                  </tr>
+                </thead>
+                <tbody id="tbl-op-productivity">
+                  <!-- Preenchido via app.js -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="card-box">
+            <h3 style="font-size: 1rem; margin-bottom: 12px; color: var(--primary);">🏬 Resumo por Depósito</h3>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Depósito</th>
+                    <th>Total</th>
+                    <th>Contados</th>
+                    <th>Pend.</th>
+                    <th>Div.</th>
+                  </tr>
+                </thead>
+                <tbody id="tbl-deposit-summary">
+                  <!-- Preenchido via app.js -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ABA 4: RELATÓRIOS & EXPORTAÇÕES -->
+      <section id="tab-relatorios" class="tab-pane" style="display: none;">
+        <div class="card-box" style="margin-bottom: 16px; display: flex; flex-direction: column; gap: 12px;">
+          <div>
+            <h2 style="font-size: 1.1rem; color: var(--primary);">📄 Relatórios de Inventário Físico</h2>
+            <p style="font-size: 0.85rem; color: var(--text-muted);">Gere relatórios corporativos com KPIs e tabela analítica completa.</p>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn-large btn-primary" onclick="exportPDF()" style="flex: 1; min-height: 44px; font-size: 0.9rem;">🖨️ Imprimir / PDF</button>
+            <button class="btn-large btn-secondary" onclick="exportCSV()" style="flex: 1; min-height: 44px; font-size: 0.9rem;">📊 Exportar CSV</button>
+          </div>
+        </div>
+
+        <div id="report-print-container" class="card-box">
+          <div style="border-bottom: 2px solid var(--primary); padding-bottom: 10px; margin-bottom: 16px;">
+            <img src="Logo_nova-removebg-preview.png" alt="JR Distribuidora" style="height: 38px; filter: invert(0.2);">
+            <h1 style="font-size: 1.2rem; color: var(--primary); margin-top: 4px;">RELATÓRIO ANALÍTICO DE INVENTÁRIO FÍSICO</h1>
+            <div style="font-size: 0.8rem; color: var(--text-muted); display: flex; justify-content: space-between; flex-wrap: wrap; margin-top: 6px; gap: 8px;">
+              <span>Inventário: <strong id="rpt-inv-code">--</strong></span>
+              <span>Escopo: <strong id="rpt-inv-scope">Geral</strong></span>
+              <span>Data: <strong id="rpt-date">--</strong></span>
+            </div>
+          </div>
+
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Código</th>
+                  <th>Descrição</th>
+                  <th>Depósito</th>
+                  <th>Teórica</th>
+                  <th>Contada</th>
+                  <th>Dif.</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="tbl-report-analytical">
+                <!-- Preenchido via app.js -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ABA 5: CENTRAL DE AUDITORIA -->
+      <section id="tab-auditoria" class="tab-pane" style="display: none;">
+        <div class="card-box" style="margin-bottom: 16px;">
+          <h2 style="font-size: 1.1rem; color: var(--primary); margin-bottom: 4px;">📜 Log de Auditoria em Tempo Real</h2>
+          <p style="font-size: 0.8rem; color: var(--text-muted);">Histórico cronológico de acessos, contagens, aprovações e reaberturas.</p>
+        </div>
+
+        <div id="audit-mobile-list" class="mobile-card-list">
+          <!-- Preenchido via app.js -->
+        </div>
+      </section>
+
+      <!-- ABA 6: GESTÃO DE INVENTÁRIOS (ADMIN) -->
+      <section id="tab-gestao-inventario" class="tab-pane" style="display: none;">
+        <div class="card-box">
+          <h2 style="font-size: 1.1rem; color: var(--primary); margin-bottom: 12px;">⚙️ Abertura, Bloqueio e Planilhas</h2>
+          
+          <div style="display: flex; flex-direction: column; gap: 16px;">
+            <div style="border: 1px dashed var(--border-color); padding: 14px; border-radius: var(--radius-sm);">
+              <h3 style="font-size: 0.95rem; margin-bottom: 8px;">📤 Iniciar Novo Inventário com Planilha</h3>
+              <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 8px;">Importe um arquivo .xlsx para iniciar um novo ciclo de contagem.</p>
+              <input type="file" id="file-excel-management" accept=".xlsx, .xls" class="search-input" style="padding: 8px; margin-bottom: 10px; font-size: 0.85rem;">
+              <button class="btn-large btn-primary" onclick="handleManagementExcelUpload()" style="width: 100%; min-height: 44px;">Processar Planilha</button>
+            </div>
+
+            <div style="border: 1px dashed var(--border-color); padding: 14px; border-radius: var(--radius-sm);">
+              <h3 style="font-size: 0.95rem; margin-bottom: 8px;">🔒 Encerramento e Reabertura</h3>
+              <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 10px;">Finalizar o inventário bloqueia novas contagens. A reabertura exige atestado do Administrador.</p>
+              <div style="display: flex; gap: 8px;">
+                <button class="btn-large btn-danger" onclick="confirmFinalizeInventory()" style="flex: 1; min-height: 44px; font-size: 0.85rem;">Finalizar Inventário</button>
+                <button class="btn-large btn-secondary" onclick="openReopenModal()" style="flex: 1; min-height: 44px; font-size: 0.85rem;">Reabrir Inventário</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- MODAL DE CONTAGEM RÁPIDA DE PRODUTO (CONTAGEM CEGA) -->
+    <div id="count-modal" class="modal-overlay">
+      <div class="modal-card">
+        <div class="modal-header">
+          <div>
+            <h3 id="modal-product-code" style="font-size: 1.2rem; font-weight: 800;">PROD-001</h3>
+            <span id="modal-product-deposito" style="font-size: 0.8rem; opacity: 0.9;">Depósito Central</span>
+          </div>
+          <button onclick="closeCountModal()" style="background: none; border: none; color: white; font-size: 1.6rem; cursor: pointer;">&times;</button>
+        </div>
+
+        <div class="modal-body">
+          <p id="modal-product-desc" style="font-weight: 700; font-size: 0.95rem; color: var(--text-main); margin-bottom: 8px;">Descrição do Produto...</p>
+
+          <div>
+            <label style="font-size: 0.85rem; font-weight: 700; display: block; margin-bottom: 4px;">Quantidade Contada Física</label>
+            <input type="number" id="count-qty-input" class="count-input-display" value="" placeholder="0" step="any" inputmode="decimal">
+          </div>
+
+          <!-- Botões de Incremento Rápido -->
+          <div class="step-btns">
+            <button class="step-btn" onclick="stepCount(1)">+1</button>
+            <button class="step-btn" onclick="stepCount(5)">+5</button>
+            <button class="step-btn" onclick="stepCount(10)">+10</button>
+            <button class="step-btn" onclick="stepCount(-1)" style="background: #FEE2E2; color: var(--danger);">-1</button>
+          </div>
+
+          <!-- Teclado Numérico Visual para Smartphones -->
+          <div class="numpad-grid">
+            <button class="num-btn" onclick="numpadPress('7')">7</button>
+            <button class="num-btn" onclick="numpadPress('8')">8</button>
+            <button class="num-btn" onclick="numpadPress('9')">9</button>
+            <button class="num-btn" onclick="numpadPress('4')">4</button>
+            <button class="num-btn" onclick="numpadPress('5')">5</button>
+            <button class="num-btn" onclick="numpadPress('6')">6</button>
+            <button class="num-btn" onclick="numpadPress('1')">1</button>
+            <button class="num-btn" onclick="numpadPress('2')">2</button>
+            <button class="num-btn" onclick="numpadPress('3')">3</button>
+            <button class="num-btn" onclick="numpadPress('C')" style="color: var(--danger);">C</button>
+            <button class="num-btn" onclick="numpadPress('0')">0</button>
+            <button class="num-btn" onclick="numpadPress('DEL')">⌫</button>
+          </div>
+
+          <div style="margin-bottom: 12px;">
+            <label style="font-size: 0.8rem; font-weight: 700; display: block; margin-bottom: 4px;">Observação (Opcional)</label>
+            <input type="text" id="count-obs-input" class="search-input" style="padding-left: 12px;" placeholder="Ex: Embalagem avariada, lote rasgado...">
+          </div>
+
+          <div style="display: flex; gap: 8px; margin-top: 4px;">
+            <button class="btn-large btn-danger" onclick="submitNonLocated()" style="flex: 1; font-size: 0.88rem; min-height: 48px; background-color: #FEF2F2; color: var(--danger); border: 1.5px solid #FECACA;" title="Marcar item com quantidade zero e status divergente">
+              ❌ Não localizado
+            </button>
+            <button class="btn-large btn-primary" onclick="submitCount()" style="flex: 1.4; font-size: 1rem; min-height: 48px;">
+              💾 Salvar Contagem
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL DE ITEM NÃO CADASTRADO (FORA DA PLANILHA) -->
+    <div id="adhoc-item-modal" class="modal-overlay">
+      <div class="modal-card" style="max-width: 420px;">
+        <div class="modal-header">
+          <h3>➕ Item não cadastrado</h3>
+          <button onclick="closeAdhocItemModal()" style="background: none; border: none; color: white; font-size: 1.5rem; cursor: pointer;">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 12px;">
+            Encontrou um produto no estoque que não consta na planilha? Registre-o aqui. Ele entrará automaticamente como divergência (teórico zero) para atestado na 3ª Contagem.
+          </p>
+
+          <div style="margin-bottom: 10px;">
+            <label style="font-size: 0.8rem; font-weight: 700; display: block; margin-bottom: 3px;">Código do Item (Opcional)</label>
+            <input type="text" id="adhoc-code-input" class="search-input" placeholder="Ex: COD-9999 (ou deixe em branco)">
+          </div>
+
+          <div style="margin-bottom: 10px;">
+            <label style="font-size: 0.8rem; font-weight: 700; display: block; margin-bottom: 3px;">Descrição do Produto</label>
+            <input type="text" id="adhoc-desc-input" class="search-input" placeholder="Ex: Filtro de ar avulso" required>
+          </div>
+
+          <div style="margin-bottom: 10px;">
+            <label style="font-size: 0.8rem; font-weight: 700; display: block; margin-bottom: 3px;">Depósito / Local</label>
+            <input type="text" id="adhoc-deposito-input" class="search-input" placeholder="Ex: Prateleira B1" required>
+          </div>
+
+          <div style="margin-bottom: 14px;">
+            <label style="font-size: 0.8rem; font-weight: 700; display: block; margin-bottom: 3px;">Quantidade Contada Física</label>
+            <input type="number" id="adhoc-qty-input" class="count-input-display" value="1" step="any" required>
+          </div>
+
+          <button class="btn-large btn-primary" onclick="submitAdhocItem()" style="width: 100%; min-height: 46px;">
+            ➕ Registrar Item
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL DE CONFERÊNCIA ANTES DA IMPORTAÇÃO EXCEL -->
+    <div id="import-preview-modal" class="modal-overlay">
+      <div class="modal-card" style="max-width: 480px;">
+        <div class="modal-header">
+          <h3>📊 Conferência da Planilha</h3>
+          <button onclick="closeImportPreviewModal()" style="background: none; border: none; color: white; font-size: 1.5rem; cursor: pointer;">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px;">
+            Revise os dados identificados na planilha antes de confirmar a gravação no banco de dados:
+          </p>
+
+          <!-- ALERTA DE CÓDIGOS REPETIDOS NA PLANILHA (PREVENÇÃO DE DUPLICIDADES) -->
+          <div id="prev-duplicates-warning" style="display: none; background: #FEF3C7; border: 1px solid #FDE68A; border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 12px;">
+            <div style="color: #92400E; font-size: 0.85rem; font-weight: 800; display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+              <span>⚠️ Atenção: Códigos Repetidos na Planilha</span>
+            </div>
+            <p id="prev-duplicates-text" style="font-size: 0.78rem; color: #78350F; margin: 0; line-height: 1.4;"></p>
+          </div>
+
+          <div class="kpi-grid" style="grid-template-columns: 1fr 1fr; margin-bottom: 12px;">
+            <div class="kpi-card">
+              <span class="kpi-label">Itens a Importar</span>
+              <span class="kpi-value" id="prev-total-items" style="font-size: 1.4rem;">0</span>
+            </div>
+            <div class="kpi-card">
+              <span class="kpi-label">Depósitos Selecionados</span>
+              <span class="kpi-value" id="prev-total-deposits" style="font-size: 1.4rem; color: var(--accent);">0</span>
+            </div>
+            <div class="kpi-card" style="grid-column: span 2;">
+              <span class="kpi-label">Valor Teórico Total</span>
+              <span class="kpi-value" id="prev-theor-val" style="font-size: 1.2rem;">R$ 0,00</span>
+              <span class="kpi-subtext" id="prev-warnings-text" style="color: var(--warning);">Linhas com alerta: 0</span>
+            </div>
+          </div>
+
+          <!-- SELEÇÃO DE DEPÓSITOS PARA INVENTÁRIO PARCIAL OU TOTAL -->
+          <div style="background: var(--bg-main); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 12px; margin-bottom: 12px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 6px;">
+              <span style="font-size: 0.85rem; font-weight: 800; color: var(--primary);">🏬 Depósitos a Inventariar</span>
+              <div style="display: flex; gap: 6px;">
+                <button type="button" class="btn-text" onclick="selectAllImportDeposits(true)" style="font-size: 0.75rem; color: var(--accent); cursor: pointer; background: none; border: none; font-weight: 700; padding: 2px 4px;">
+                  ☑️ Marcar todos
+                </button>
+                <span style="color: var(--border-color);">|</span>
+                <button type="button" class="btn-text" onclick="selectAllImportDeposits(false)" style="font-size: 0.75rem; color: var(--text-muted); cursor: pointer; background: none; border: none; font-weight: 700; padding: 2px 4px;">
+                  ☐ Desmarcar todos
+                </button>
+              </div>
+            </div>
+            <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 8px;">
+              Selecione quais depósitos entrarão neste ciclo. Os itens não marcados serão ignorados.
+            </p>
+            <div id="import-deposits-list" class="import-deposits-checklist" style="max-height: 170px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding-right: 4px;">
+              <!-- Checkboxes gerados dinamicamente via app.js -->
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 8px;">
+            <button class="btn-large btn-secondary" onclick="closeImportPreviewModal()" style="flex: 1;">Cancelar</button>
+            <button class="btn-large btn-primary" id="btn-confirm-import" onclick="confirmImportExecution()" style="flex: 1.5;">
+              ✅ Confirmar e Iniciar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL DE MESCLAGEM DE ITENS DUPLICADOS -->
+    <div id="merge-modal" class="modal-overlay">
+      <div class="modal-card" style="max-width: 500px;">
+        <div class="modal-header">
+          <h3>🔀 Mesclar Itens Duplicados</h3>
+          <button onclick="closeMergeModal()" style="background: none; border: none; color: white; font-size: 1.5rem; cursor: pointer;">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p style="font-size: 0.82rem; color: var(--text-muted);">
+            Selecione qual item deve <strong>sobreviver</strong> (normalmente o original da planilha com saldo teórico). A quantidade contada será <strong>somada para sua confirmação antes de gravar</strong>.
+          </p>
+
+          <div style="font-size: 0.85rem; font-weight: 800; color: var(--primary);">
+            1. Escolha o item SOBREVIVENTE:
+          </div>
+
+          <div id="merge-survivor-options" style="display: flex; flex-direction: column; gap: 8px;">
+            <!-- Opções A e B renderizadas via app.js -->
+          </div>
+
+          <div class="merge-calc-box">
+            <div class="merge-calc-title">Soma das Quantidades Contadas</div>
+            <div class="merge-calc-value" id="merge-sum-value">0</div>
+            <div class="merge-calc-breakdown" id="merge-sum-breakdown">Item A (0) + Item B (0)</div>
+          </div>
+
+          <div>
+            <label style="font-size: 0.8rem; font-weight: 700; display: block; margin-bottom: 3px;">
+              Senha de Atestado do Administrador
+            </label>
+            <input type="password" id="merge-admin-password" class="search-input" style="padding-left: 12px;" placeholder="Senha do Administrador...">
+          </div>
+
+          <div style="display: flex; gap: 8px; margin-top: 4px;">
+            <button class="btn-large btn-secondary" onclick="closeMergeModal()" style="flex: 1;">Cancelar</button>
+            <button class="btn-large btn-primary" id="btn-confirm-merge" onclick="submitMergeConfirmation()" style="flex: 1.4;">
+              ✅ Confirmar Mesclagem
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- BARRA FLUTUANTE DE MESCLAGEM MANUAL -->
+    <div id="manual-merge-bar" class="manual-merge-bar" style="display: none;">
+      <div style="font-size: 0.85rem;">
+        <span>Mesclagem: </span><strong id="manual-merge-selected-count">0</strong>/2 selecionados
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <button class="btn-large btn-secondary" onclick="cancelManualMergeMode()" style="min-height: 36px; padding: 0 10px; font-size: 0.8rem;">
+          Cancelar
+        </button>
+        <button class="btn-large btn-primary" id="btn-proceed-manual-merge" onclick="proceedWithManualMerge()" style="min-height: 36px; padding: 0 12px; font-size: 0.8rem;" disabled>
+          🔀 Mesclar
+        </button>
+      </div>
+    </div>
+
+    <!-- MODAL DE REABERTURA COM SENHA ADMIN -->
+    <div id="reopen-modal" class="modal-overlay">
+      <div class="modal-card" style="max-width: 400px;">
+        <div class="modal-header">
+          <h3>🔐 Reabertura de Inventário</h3>
+          <button onclick="closeReopenModal()" style="background: none; border: none; color: white; font-size: 1.5rem; cursor: pointer;">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px;">
+            A reabertura de um inventário finalizado gerará um registro no Log de Auditoria. Insira a senha de atestado do Administrador:
+          </p>
+          <input type="password" id="reopen-password-input" class="search-input" style="padding-left: 12px; margin-bottom: 12px;" placeholder="Senha do Administrador...">
+          <button class="btn-large btn-danger" onclick="submitReopenInventory()" style="width: 100%; min-height: 44px;">Confirmar Reabertura</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Scripts ESM do Sistema -->
+  <script type="module" src="app.js"></script>
+
+  <script>
+    if ('serviceWorker' in navigator) {
+      let swRefreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (swRefreshing) return;
+        swRefreshing = true;
+        window.location.reload();
+      });
+
+      navigator.serviceWorker.register('./sw.js').then((reg) => {
+        reg.update();
+      }).catch(err => console.log('SW error:', err));
+    }
+  </script>
+</body>
+</html>

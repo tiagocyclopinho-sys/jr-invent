@@ -1,0 +1,9 @@
+{
+  "name": "jr-invent",
+  "version": "2.0.0",
+  "private": true,
+  "description": "JR INVENT - Sistema de Inventário Físico Corporativo",
+  "engines": {
+    "node": ">=18"
+  }
+}
