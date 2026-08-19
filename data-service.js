@@ -261,8 +261,11 @@ export async function saveCount(inventoryId, itemId, { quantidadeContada, operat
     if (naoEncontrado) {
       valorContado = 0;
       diferenca = 0 - (Number(current.quantidadeTeorica) || 0);
-      status = (Number(current.quantidadeTeorica) || 0) > 0 ? "divergencia" : "sem_divergencia";
-      countStage = status === "divergencia" ? 3 : 2;
+      // Item não localizado é SEMPRE tratado como divergência (mesmo que o saldo teórico já
+      // seja zero), pois precisa passar pela 3ª contagem para verificação/atestado do Admin
+      // antes de ser considerado definitivo.
+      status = "divergencia";
+      countStage = 3;
     } else {
       diferenca = valorContado - (Number(current.quantidadeTeorica) || 0);
       status = diferenca !== 0 ? "divergencia" : "sem_divergencia";
